@@ -35,3 +35,24 @@ export async function fetchJraHtml(url: string): Promise<string> {
   const buffer = await response.arrayBuffer();
   return SHIFT_JIS_DECODER.decode(buffer);
 }
+
+// JRAサイトの一部の画面(開催選択・レース選択など)は、JS側でCNAMEをhiddenフォームに
+// 詰めてPOSTするナビゲーション(doAction())でのみ到達できる。同じ仕組みをサーバー側で再現する。
+export async function postJraForm(url: string, cname: string): Promise<string> {
+  await throttle();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Accept-Language": "ja,en;q=0.8",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ cname }).toString(),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`JRAサイトへのリクエストに失敗しました (HTTP ${response.status}): ${url} (cname=${cname})`);
+  }
+  const buffer = await response.arrayBuffer();
+  return SHIFT_JIS_DECODER.decode(buffer);
+}

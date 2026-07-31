@@ -1,39 +1,37 @@
 import "server-only";
 import * as cheerio from "cheerio";
-import { fetchJraHtml } from "./http";
+import { postJraForm } from "./http";
 import { RaceQuery, RaceResolutionError } from "./types";
 
-const ACCESS_D_SELECTOR = "a[href*='/JRADB/accessD.html']";
-const RACE_NO_PATTERN = /(\d{1,2})\s*R/i;
+const ACCESS_D_URL = "https://www.jra.go.jp/JRADB/accessD.html";
+const RACE_NUM_ALT_PATTERN = /(\d{1,2})レース/;
 
 /**
- * 週間出走馬情報ページ(thisweek)から、指定レース番号の出馬表(accessD.html)URLを解決する。
+ * 「レース選択」ページ(POST /JRADB/accessD.html, cname=<開催選択で解決したCNAME>)から、
+ * 指定レース番号の出馬表(accessD.html?CNAME=...)URLを解決する。
  *
- * レース番号の特定方法:
- * 1. リンクテキストに "◯R" のような表記があればそれを優先
- * 2. 見つからない場合は、ページ内の出馬表リンクの出現順を1R〜12Rとみなすフォールバックを使う
- *
- * ページ構造は実際の開催週でのみ確認できるため、いずれの方式が正しいかは
- * 開催が近いレースで検証が必要(実装計画の検証手順を参照)。
+ * レース番号はリンク内の画像alt属性(例:「6レース」)から取得する。同じリンクが
+ * レース番号ボタンと「出馬表」ボタンの2箇所に出現するため、hrefで重複排除する。
  */
-export async function resolveRaceUrl(query: RaceQuery, thisweekUrl: string): Promise<string> {
-  const html = await fetchJraHtml(thisweekUrl);
+export async function resolveRaceUrl(query: RaceQuery, raceSelectCname: string): Promise<string> {
+  const html = await postJraForm(ACCESS_D_URL, raceSelectCname);
   const $ = cheerio.load(html);
 
+  const seen = new Set<string>();
   const candidates: { href: string; raceNo?: number }[] = [];
-  $(ACCESS_D_SELECTOR).each((_, el) => {
+
+  $("a[href*='/JRADB/accessD.html?CNAME=']").each((_, el) => {
     const href = $(el).attr("href");
-    if (!href) return;
-    const text = $(el).text();
-    const match = text.match(RACE_NO_PATTERN);
+    if (!href || seen.has(href)) return;
+    seen.add(href);
+
+    const alt = $(el).find("img").attr("alt") ?? "";
+    const match = alt.match(RACE_NUM_ALT_PATTERN);
     candidates.push({ href, raceNo: match ? Number(match[1]) : undefined });
   });
 
   if (candidates.length === 0) {
-    throw new RaceResolutionError(
-      query,
-      `週間出走馬情報ページ(${thisweekUrl})に出馬表リンクが見つかりませんでした。`,
-    );
+    throw new RaceResolutionError(query, "レース選択ページに出馬表リンクが見つかりませんでした。");
   }
 
   const byExplicitNo = candidates.find((c) => c.raceNo === query.raceNo);

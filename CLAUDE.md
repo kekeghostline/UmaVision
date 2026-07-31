@@ -16,7 +16,7 @@ JRAサイトから取得した出馬表の生データ（馬名・騎手名・�
 
 ## アーキテクチャ概要
 
-- `src/lib/scraper/*` — JRAサイトの取得・パース（Cheerioベース）。`index.ts` の `fetchShutubaTable()` がエントリポイント。
+- `src/lib/scraper/*` — JRAサイトの取得・パース（Cheerioベース）。`index.ts` の `fetchShutubaTable()` がエントリポイント。JRAサイトは出馬表への直接リンクを提供しておらず、JS(`doAction()`)がCNAMEをhiddenフォームに詰めてPOSTするナビゲーションでのみ到達できるため、`calendar.ts`（開催選択→レース選択CNAMEの解決）→`thisweek.ts`（レース選択→個別レースURLの解決）→`shutubaParser.ts`（出馬表テーブルのパース）という3段階になっている。
 - `src/lib/claude/*` — Claude APIによる予想生成。`predict.ts` は `messages.parse()`（`.create()` ではない）を使い構造化出力を得る。
 - `src/app/api/predict/route.ts` — スクレイピング＋Claude予想のオーケストレーション（`runtime = "nodejs"` 必須）。
 - `src/app/api/scrape-debug/route.ts` — 開発時（`NODE_ENV=development`）のみ有効な、スクレイパー単体検証用エンドポイント。
@@ -24,7 +24,9 @@ JRAサイトから取得した出馬表の生データ（馬名・騎手名・�
 ## 既知の技術的注意点
 
 - JRAサイトはShift_JISで配信されるため `src/lib/scraper/http.ts` で `TextDecoder("shift_jis")` を明示使用している（`response.text()` のUTF-8デコードだと文字化けする）。
-- `resolveThisweekUrl`（週間出走馬情報ページからのレースリンク抽出、`src/lib/scraper/calendar.ts`）は実際の開催日でのライブ検証が未完了。ページの実データがJSレンダリングされている場合、現在のCheerioのみの実装では0件になる可能性があり、その場合は `src/lib/scraper/fetchWithFallback.ts` にPlaywrightフォールバックの実装が必要になる。
+- 出馬表データは静的HTMLに直接含まれており、JSによる動的読み込みではない（実データで検証済み）。Playwright等のヘッドレスブラウザは不要。
+- 出馬表テーブルは `table.basic.narrow-xy.mt20` というクラスで識別する。同じページ内の「過去5年の成績」テーブルは `.mt20` が付かないため誤って混ざらない。列はクラスベース（`td.num`＝馬番、`td.horse .name a`＝馬名、`td.jockey p.jockey a`＝騎手名 等）で抽出しており、単純な位置ベースのtd抽出ではない。
+- オッズはaccessD.html（出馬表ページ）には含まれていない。別ページ（accessO.html）の取得が必要だが未実装（スコープ外）。
 
 ## 環境構築
 

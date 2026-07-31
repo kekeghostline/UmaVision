@@ -15,13 +15,11 @@ function isUnpublished(pageText: string): boolean {
 /**
  * accessD.html の出馬表HTMLをパースする。
  *
- * JRAサイトの出馬表テーブルの正確なDOM構造は、開催直前〜当日の実際のページでしか
- * 確認できないため、ここでは一般的な構造(馬番を含む行のテーブル)を仮定した
- * 暫定実装にしている。開催中のレースで動作確認し、必要に応じてセレクタを調整すること
- * (実装計画の検証手順を参照)。
- *
- * 実データが0件かつ「掲載終了」等のメッセージも検出できない場合は、
- * JSによる動的読み込みの可能性を示すため呼び出し側でPlaywrightフォールバックを検討する。
+ * 実データで確認した構造: 出馬表テーブルは `table.basic.narrow-xy.mt20`
+ * (同じページ内にある「過去5年の成績」テーブルは `.mt20` が付かないため区別できる)。
+ * 各行は td.waku(枠、画像のみ) / td.num(馬番) / td.horse(馬名・厩舎名などが入れ子) /
+ * td.jockey(性齢・斤量・騎手名が入れ子) / 過去走4列、という構成でクラスベースに抽出する。
+ * オッズはこのページには含まれない(別ページaccessO.htmlが必要、今回のスコープ外)。
  */
 export function parseShutubaHtml(query: RaceQuery, html: string): RaceInfo {
   const $ = cheerio.load(html);
@@ -33,39 +31,47 @@ export function parseShutubaHtml(query: RaceQuery, html: string): RaceInfo {
 
   const entries: ShutubaEntry[] = [];
 
-  $("table").each((_, table) => {
-    $(table)
-      .find("tr")
-      .each((__, row) => {
-        const cells = $(row)
-          .find("td, th")
-          .map((___, cell) => $(cell).text().trim())
-          .get();
+  $("table.basic.narrow-xy.mt20 tbody tr").each((_, row) => {
+    const $row = $(row);
+    const umaban = Number($row.find("td.num").text().trim());
+    if (!Number.isInteger(umaban) || umaban <= 0 || umaban > 18) return;
 
-        if (cells.length < 4) return;
+    const horseName = $row.find("td.horse .name a").first().text().trim();
+    const trainerName = $row.find("td.horse .trainer a").first().text().trim();
 
-        const umaban = Number(cells[0]);
-        if (!Number.isInteger(umaban) || umaban <= 0 || umaban > 18) return;
+    const ageText = $row.find("td.jockey p.age").first().text().trim();
+    const sexAge = ageText.split("/")[0]?.trim() ?? ageText;
 
-        entries.push({
-          umaban,
-          horseName: cells[1] ?? "",
-          sexAge: cells[2] ?? "",
-          weightCarried: Number(cells[3]) || 0,
-          jockeyName: cells[4] ?? "",
-          trainerName: cells[5] ?? "",
-          odds: cells[6] ? Number(cells[6]) || undefined : undefined,
-        });
-      });
+    const weightText = $row.find("td.jockey p.weight").first().text().trim();
+    const weightCarried = Number(weightText.replace(/[^\d.]/g, "")) || 0;
+
+    const jockeyName = $row.find("td.jockey p.jockey a").first().text().trim();
+
+    entries.push({
+      umaban,
+      horseName,
+      sexAge,
+      weightCarried,
+      jockeyName,
+      trainerName,
+    });
   });
 
-  const raceNameMatch = bodyText.match(/([\wぁ-んァ-ヶ一-龠]+(?:ステークス|カップ|記念|賞|杯))/);
+  const raceName = $("span.race_name").first().text().trim() || `${query.trackName}${query.raceNo}R`;
+
+  const courseText = $("div.cell.course").first().text().replace(/\s+/g, "");
+  const distanceMatch = courseText.match(/([\d,]+)メートル/);
+  const distanceMeters = distanceMatch ? Number(distanceMatch[1].replace(/,/g, "")) : undefined;
+  const surfaceMatch = courseText.match(/[（(]([芝ダート]+)/);
+  const surface = surfaceMatch ? surfaceMatch[1] : undefined;
 
   return {
     date: query.date,
     trackName: query.trackName,
     raceNo: query.raceNo,
-    raceName: raceNameMatch?.[1] ?? `${query.trackName}${query.raceNo}R`,
+    raceName,
+    distanceMeters,
+    surface,
     entries,
   };
 }
