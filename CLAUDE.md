@@ -14,6 +14,10 @@ JRA出馬表を取得し、資金額とスタイルに応じてAI（Claude）が
 
 JRAサイトから取得した出馬表の生データ（馬名・騎手名・オッズ等）はAPIレスポンス・UIに一切出力しない。返すのはAI予想結果のみ。この制約は `src/lib/claude/promptBuilder.ts` のシステムプロンプトと `src/app/api/predict/route.ts` のレスポンス整形で担保している。新機能を追加する際もこの原則を維持すること。
 
+## 重要な制約（馬券購入単位）
+
+JRAの馬券は100円単位でしか購入できないため、AI予想の`stakeYen`/`totalStakeYen`は必ず100円単位（100, 200, 300...）でなければならない。この制約は `src/lib/claude/schema.ts` の zodスキーマ（`multipleOf(100)`、構造化出力で強制）と `src/lib/claude/promptBuilder.ts` のシステムプロンプトの両方で担保している。金額に関わるスキーマを変更する際はこの制約を崩さないこと。
+
 ## アーキテクチャ概要
 
 - `src/lib/scraper/*` — JRAサイトの取得・パース（Cheerioベース）。`index.ts` の `fetchShutubaTable()` がエントリポイント。JRAサイトは出馬表への直接リンクを提供しておらず、JS(`doAction()`)がCNAMEをhiddenフォームに詰めてPOSTするナビゲーションでのみ到達できるため、`calendar.ts`（開催選択→レース選択CNAMEの解決）→`thisweek.ts`（レース選択→個別レースURLの解決）→`shutubaParser.ts`（出馬表テーブルのパース）という3段階になっている。
