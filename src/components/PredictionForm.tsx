@@ -90,7 +90,7 @@ export function PredictionForm() {
           required
           value={values.date}
           onChange={(e) => setValues((v) => ({ ...v, date: e.target.value }))}
-          className="rounded-md border border-gray-300 px-3 py-2 text-base"
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900"
         />
       </div>
 
@@ -102,7 +102,7 @@ export function PredictionForm() {
           id="trackName"
           value={values.trackName}
           onChange={(e) => setValues((v) => ({ ...v, trackName: e.target.value }))}
-          className="rounded-md border border-gray-300 px-3 py-2 text-base"
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900"
         >
           {TRACK_NAMES.map((name) => (
             <option key={name} value={name}>
@@ -120,7 +120,7 @@ export function PredictionForm() {
           id="raceNo"
           value={values.raceNo}
           onChange={(e) => setValues((v) => ({ ...v, raceNo: Number(e.target.value) }))}
-          className="rounded-md border border-gray-300 px-3 py-2 text-base"
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900"
         >
           {RACE_NUMBERS.map((n) => (
             <option key={n} value={n}>
@@ -142,7 +142,7 @@ export function PredictionForm() {
           required
           value={values.budgetYen}
           onChange={(e) => setValues((v) => ({ ...v, budgetYen: Number(e.target.value) }))}
-          className="rounded-md border border-gray-300 px-3 py-2 text-base"
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900"
         />
       </div>
 
